@@ -9,18 +9,16 @@ from pydantic import BaseModel, Field
 
 
 app = FastAPI(
-    title="Prediction API",
-    description="API for making predictions and providing model insights.",
+    title="API de Predição de Anomalias de Rede",
+    description="API para predição de anomalias de rede.",
     version="2.0.0"
 )
 
+
 # --- Model and Feature Loading ---
-try:
-    model = load('model.joblib')
-    scaler = load('scaler.joblib')
-    model_columns = load('model_columns.joblib')
-except FileNotFoundError as e:
-    raise RuntimeError(f"Could not load machine learning asset: {e}. Make sure model.joblib, scaler.joblib, and model_columns.joblib are in the root directory.")
+model = load('model.joblib')
+scaler = load('scaler.joblib')
+model_columns = load('model_columns.joblib')
 
 # NEW: Calculate and store global feature importances at startup
 TOP_N_FEATURES = 15
@@ -38,24 +36,24 @@ class FeatureImportance(BaseModel):
     importance: float
 
 class PredictionResult(BaseModel):
-    prediction: str = Field(..., description="The predicted class label (e.g., 'Normal', 'Backdoor').")
-    is_anomaly: bool = Field(..., description="True if the prediction is not 'Normal'.")
-    confidence: float = Field(..., description="The model's confidence in its prediction (probability of the predicted class).")
-    probabilities: Dict[str, float] = Field(..., description="A dictionary of probabilities for each possible class.")
+    prediction: str = Field(..., description="A label da classe predita (exemplo: 'Normal', 'Backdoor').")
+    is_anomaly: bool = Field(..., description="True se a predição não for 'Normal'.")
+    confidence: float = Field(..., description="A confiança do modelo na sua predição (probabilidade da classe predita).")
+    probabilities: Dict[str, float] = Field(..., description="Um dicionário de probabilidades para cada classe possível.")
 
 class EnhancedPredictionResponse(BaseModel):
-    input_data: Dict[str, Any] = Field(..., description="A copy of the original input data for this prediction.")
-    result: PredictionResult = Field(..., description="The prediction results.")
+    input_data: Dict[str, Any] = Field(..., description="Uma cópia dos dados de entrada originais para esta predição.")
+    result: PredictionResult = Field(..., description="Os resultados da predição.")
 
 
 # --- Core Prediction Logic ---
 
 def process_and_predict(df: pd.DataFrame, original_data: List[Dict]) -> List[EnhancedPredictionResponse]:
     """
-    Runs the full prediction pipeline and formats the output for the API.
+    Executa o pipeline completo de predição e formata a saída para a API.
     """
     if df.empty:
-        raise ValueError("Input data cannot be empty.")
+        raise ValueError("Os dados de entrada não podem estar vazios.")
 
     # Preprocessing
     input_df_encoded = pd.get_dummies(df)
@@ -70,6 +68,7 @@ def process_and_predict(df: pd.DataFrame, original_data: List[Dict]) -> List[Enh
     # Format output
     output = []
     for i, prediction in enumerate(predictions):
+        print(predictions)
         prediction_str = str(prediction.item() if hasattr(prediction, 'item') else prediction)
         probabilities_dict = dict(zip(model.classes_, prediction_probabilities[i]))
         
@@ -98,9 +97,9 @@ def process_and_predict(df: pd.DataFrame, original_data: List[Dict]) -> List[Enh
 @app.get("/features/importances", response_model=List[FeatureImportance])
 def get_feature_importances():
     """
-    Provides the top N most important features as determined by the model during training.
-    This is useful for creating frontend visualizations about what the model considers
-    most influential overall.
+    Fornece as N features mais importantes como determinadas pelo modelo durante o treinamento.
+    Isso é útil para criar visualizações front-end sobre o que o modelo considera
+    mais influente globalmente.
     """
     return top_features
 
@@ -108,8 +107,8 @@ def get_feature_importances():
 @app.post("/predict", response_model=Union[EnhancedPredictionResponse, List[EnhancedPredictionResponse]])
 def predict(data: Union[List[Dict], Dict]):
     """
-    Prediction endpoint for JSON data.
-    Accepts a single JSON object or a list of JSON objects and returns an enhanced response.
+    Endpoint de predição para dados JSON.
+    Aceita um único objeto JSON ou uma lista de objetos JSON e retorna uma resposta enriquecida.
     """
     try:
         if isinstance(data, dict):
@@ -118,25 +117,25 @@ def predict(data: Union[List[Dict], Dict]):
             return processed_results[0]
         elif isinstance(data, list):
             if not data:
-                raise HTTPException(status_code=400, detail="Input list cannot be empty.")
+                raise HTTPException(status_code=400, detail="A lista de entrada não pode estar vazia.")
             input_df = pd.DataFrame(data)
             return process_and_predict(input_df, data)
         else:
-            raise HTTPException(status_code=400, detail="Input must be a JSON object or a list of JSON objects.")
+            raise HTTPException(status_code=400, detail="A entrada deve ser um objeto JSON ou uma lista de objetos JSON.")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        raise HTTPException(status_code=500, detail=f"Ocorreu um erro inesperado: {e}")
 
 
 @app.post("/predict/csv", response_model=List[EnhancedPredictionResponse])
 async def predict_csv(file: UploadFile = File(...)):
     """
-    Prediction endpoint for CSV file uploads.
-    Returns an enhanced prediction response for each row in the CSV.
+    Endpoint de predição para upload de arquivos CSV.
+    Retorna uma resposta de predição enriquecida para cada linha no CSV.
     """
     if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV file.")
+        raise HTTPException(status_code=400, detail="Tipo de arquivo inválido. Por favor, envie um arquivo CSV.")
     
     try:
         contents = await file.read()
@@ -149,7 +148,30 @@ async def predict_csv(file: UploadFile = File(...)):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred while processing the file: {e}")
+        raise HTTPException(status_code=500, detail=f"Ocorreu um erro inesperado ao processar o arquivo: {e}")
+
+
+@app.post("/predict/parquet", response_model=List[EnhancedPredictionResponse])
+async def predict_parquet(file: UploadFile = File(...)):
+    """
+    Endpoint de predição para upload de arquivos Parquet.
+    Retorna uma resposta de predição enriquecida para cada linha no Parquet.
+    """
+    if not (file.filename.endswith('.parquet') or file.filename.endswith('.parq')):
+        raise HTTPException(status_code=400, detail="Tipo de arquivo inválido. Por favor, envie um arquivo Parquet (.parquet).")
+
+    try:
+        contents = await file.read()
+        buffer = io.BytesIO(contents)
+        input_df = pd.read_parquet(buffer)
+
+        original_data = input_df.to_dict(orient='records')
+
+        return process_and_predict(input_df, original_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ocorreu um erro inesperado ao processar o arquivo Parquet: {e}")
 
 
 if __name__ == '__main__':

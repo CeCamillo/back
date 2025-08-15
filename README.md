@@ -164,6 +164,16 @@ Envia um arquivo CSV para predição. Cada linha é processada e uma lista de re
   ]
   ```
 
+### 4. Predição via Parquet
+
+Envia um arquivo Parquet para predição. Cada linha é processada e uma lista de resultados é retornada.
+
+- **URL**: `/predict/parquet`
+- **Método**: `POST`
+- **Corpo da Requisição**: `multipart/form-data` contendo o arquivo Parquet (`.parquet`).
+- **Resposta de Sucesso**: `200 OK`
+
+
 ## Executando o Script de Teste
 
 Um script de teste, `test_api.py`, é fornecido para verificar se todos os endpoints da API estão funcionando corretamente.
@@ -186,3 +196,33 @@ Para treinar novamente o modelo com novos dados ou configurações diferentes, v
     python model_training.py
     ```
 Este processo realizará uma busca por hiperparâmetros e salvará o melhor modelo, o scaler e a lista de colunas como `model.joblib`, `scaler.joblib`, e `model_columns.joblib`, respectivamente. A API carregará automaticamente esses novos arquivos ao ser reiniciada.
+
+## Frontend (Streamlit)
+
+Você pode testar a API com uma interface simples feita em Streamlit.
+
+### Instalação
+
+As dependências incluem `streamlit`. Se você já instalou via `requirements.txt`, nada a fazer. Caso contrário:
+
+```bash
+pip install streamlit
+```
+
+### Executar
+
+1. Inicie a API (em um terminal):
+   ```bash
+   uvicorn app:app --reload --port 5000
+   ```
+2. Em outro terminal, inicie o Streamlit (no diretório do projeto):
+   ```bash
+   streamlit run streamlit_app.py
+   ```
+3. Acesse o app do Streamlit no navegador. Configure a URL base da API na barra lateral se necessário (padrão: `http://127.0.0.1:5000`).
+
+O app permite:
+- Enviar JSON (único ou lista) para `/predict`
+- Fazer upload de CSV para `/predict/csv`
+- Fazer upload de Parquet para `/predict/parquet`
+- Visualizar importâncias de features de `/features/importances`

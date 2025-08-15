@@ -1,5 +1,38 @@
-__pycache__
-include/
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments (local env files and folders)
+.venv/
+venv/
+env/
+ENV/
+.ENV/
+Include/
 Lib/
 Scripts/
+pyvenv.cfg
 share/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Test cache
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

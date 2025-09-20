@@ -36,3 +36,9 @@ pip-wheel-metadata/
 # OS
 .DS_Store
 Thumbs.db
+
+*.joblib
+
+mlruns/
+
+*.png

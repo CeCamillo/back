@@ -1,9 +1,24 @@
+# API & Web Server
 fastapi
 uvicorn[standard]
-pandas
-joblib
-scikit-learn
 python-multipart
 requests
-streamlit
+
+# Data Handling & ML
+pandas
 pyarrow
+joblib
+scikit-learn
+numpy
+xgboost
+lightgbm
+
+# ML Experiment Tracking
+mlflow
+
+# Visualization
+matplotlib
+seaborn
+
+# Frontend
+streamlit

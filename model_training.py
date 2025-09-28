@@ -39,7 +39,7 @@ def preprocess_data(df):
 X_train_raw, y_train = preprocess_data(df_train)
 X_test_raw, y_test = preprocess_data(df_test)
 
-print("--- Class Distribution in Training Set ---")
+print("--- Distribuição de Classes no Conjunto de Treinamento ---")
 print(y_train.value_counts(), "\n" + "-"*40)
 
 # One-hot encoding + alignment
@@ -90,10 +90,10 @@ mlflow.set_experiment("UNSW_NB15_Classification")
 
 for name, model in models.items():
     with mlflow.start_run(run_name=name):
-        print(f"\n{'='*20}\nTraining {name}...\n{'='*20}")
+        print(f"\n{'='*20}\nTreinando {name}...\n{'='*20}")
 
         pipeline = Pipeline([
-            ('scaler', StandardScaler()),  # can be dropped for tree models
+            ('scaler', StandardScaler()),
             ('classifier', model)
         ])
 
@@ -116,9 +116,9 @@ for name, model in models.items():
         current_score = f1_score(y_test_encoded, y_pred_encoded, average='weighted')
         report = classification_report(y_test_encoded, y_pred_encoded, target_names=class_labels, output_dict=True)
 
-        print(f"\n--- Results for {name} ---")
-        print("Best Parameters:", search.best_params_)
-        print(f"Weighted F1-Score on Test Set: {current_score:.4f}")
+        print(f"\n--- Resultados para {name} ---")
+        print("Melhores Parâmetros:", search.best_params_)
+        print(f"F1-Score Ponderado no Conjunto de Teste: {current_score:.4f}")
 
         # --- MLflow Logging ---
         mlflow.log_params(search.best_params_)
@@ -135,9 +135,9 @@ for name, model in models.items():
         plt.figure(figsize=(6, 5))
         sns.heatmap(cm, annot=True, fmt=".2f", cmap="Blues",
                     xticklabels=class_labels, yticklabels=class_labels)
-        plt.title(f'Confusion Matrix - {name}')
-        plt.xlabel('Predicted')
-        plt.ylabel('True')
+        plt.title(f'Matriz de Confusão - {name}')
+        plt.xlabel('Previsto')
+        plt.ylabel('Real')
         plt.tight_layout()
         plt.savefig(f"confusion_matrix_{name}.png")
         mlflow.log_artifact(f"confusion_matrix_{name}.png")
@@ -152,8 +152,8 @@ for name, model in models.items():
             best_model_name = name
 
 # --- Final Save ---
-print(f"\n{'='*20}\nOverall Best Model: {best_model_name} (Weighted F1: {best_score:.4f})\n{'='*20}")
+print(f"\n{'='*20}\nMelhor Modelo Geral: {best_model_name} (F1 Ponderado: {best_score:.4f})\n{'='*20}")
 dump(best_model_pipeline, f'best_model_pipeline_{best_model_name}.joblib')
 dump(X_train.columns, 'model_columns.joblib')
 dump(le, 'label_encoder.joblib')
-print("Artifacts saved successfully.")
+print("Artefatos salvos com sucesso.")

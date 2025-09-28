@@ -1,228 +1,130 @@
-# API de Detecção de Anomalias de Rede
+# UNSW-NB15 Anomaly Detection Toolkit
 
-Este projeto fornece uma API de alto desempenho para detectar anomalias em redes de computadores usando um modelo de machine learning. A API foi construída com FastAPI e serve um modelo `RandomForestClassifier` treinado no dataset UNSW-NB15 para classificar o tráfego de rede como 'Normal', 'Backdoor' ou 'Worms'.
+Este repositório reúne tudo o que você precisa para treinar, avaliar e apresentar modelos de detecção de anomalias no dataset [UNSW-NB15](https://research.unsw.edu.au/projects/unsw-nb15-dataset). O pacote inclui:
 
-A API foi projetada para ser facilmente consumida por uma aplicação frontend, fornecendo respostas ricas e detalhadas para alimentar visualizações e dashboards interativos.
+- Um pipeline de treinamento automatizado com otimização de hiperparâmetros (Randomized Search) para Random Forest, XGBoost e LightGBM.
+- Rastreamento completo de experimentos via MLflow, com geração de métricas comparativas e artefatos (matrizes de confusão, CSVs, modelos em formato `joblib`).
+- Um dashboard em Streamlit que consome os artefatos gerados e oferece visão executiva das métricas, exploração dos dados e um sandbox de inferência.
 
-## Funcionalidades
+> **Use este projeto como ponto de partida** para pesquisas em segurança de redes, demonstrações executivas ou integração futura com APIs e pipelines de MLOps.
 
-- **API Rápida e Moderna**: Construída com FastAPI para alta performance e documentação interativa automática (Swagger UI).
-- **Múltiplos Métodos de Predição**: Suporta predições a partir de objetos JSON únicos, lotes de objetos e upload de arquivos CSV.
-- **Respostas da API Enriquecidas**: Retorna informações detalhadas para cada predição, incluindo scores de confiança, distribuições de probabilidade completas e uma cópia dos dados de entrada, tornando-a ideal para integração com o frontend.
-- **Insights do Modelo**: Inclui um endpoint que retorna as features (características) mais importantes que o modelo utiliza para tomar suas decisões.
-- **Modelo de ML Otimizado**: O modelo é treinado para lidar com o desbalanceamento de classes e utiliza ajuste de hiperparâmetros (`RandomizedSearchCV`) para uma melhor precisão em tipos de ataques raros.
+## 📁 Estrutura do projeto
 
-## Configuração e Instalação
-
-Siga estes passos para configurar e executar o projeto localmente.
-
-### 1. Pré-requisitos
-
-- Python 3.9+
-- `pip` e `venv`
-
-### 2. Clonar o Repositório
-
-```bash
-git clone <url-do-seu-repositorio>
-cd backend
+```text
+├── datasets/                         # Arquivos parquet de treino e teste (UNSW-NB15)
+├── mlruns/                           # Diretório padrão do MLflow com experimentos versionados
+├── model_training.py                 # Script principal de treinamento e logging dos modelos
+├── model_training.ipynb              # Notebook exploratório opcional
+├── streamlit_training_dashboard.py   # Dashboard interativo com Streamlit
+├── model_comparison_metrics.csv      # Métricas agregadas (CSV gerado após treinamento)
+├── per_class_f1_long.csv             # Métricas de F1 por classe para cada modelo
+├── confusion_matrix_*.png            # Matrizes de confusão renderizadas para cada algoritmo
+├── best_model_pipeline_*.joblib      # Pipeline completo vencedor (pré-processamento + modelo)
+├── model_columns.joblib              # Colunas esperadas na etapa de inferência
+├── label_encoder.joblib              # LabelEncoder com o mapeamento das classes
+├── requirements.txt                  # Dependências da aplicação
+└── README.md                         # Este documento
 ```
 
-### 3. Configurar um Ambiente Virtual (Virtual Environment)
+## 🚀 Começando
 
-É altamente recomendado usar um ambiente virtual para gerenciar as dependências do projeto.
+### Pré-requisitos
+
+- Python 3.9 ou superior
+- [pip](https://pip.pypa.io/) e [venv](https://docs.python.org/3/library/venv.html) (ou outra solução de ambiente virtual)
+- ~12 GB de espaço em disco para armazenar datasets, artefatos e experimentos do MLflow
+
+### Configuração rápida
 
 ```bash
-# Crie o ambiente virtual
+git clone <url-do-repositorio>
+cd back
+
 python -m venv venv
+source venv/bin/activate          # Em Windows use: venv\Scripts\activate
 
-# Ative o ambiente
-# No Windows
-venv\Scripts\activate
-# No macOS/Linux
-source venv/bin/activate
-```
-
-### 4. Instalar Dependências
-
-Instale todos os pacotes necessários usando o arquivo `requirements.txt`.
-
-```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-*Nota: Se você não tiver um arquivo `requirements.txt`, pode criar um com o seguinte conteúdo:*
-```txt
-fastapi
-uvicorn[standard]
-pandas
-joblib
-scikit-learn
-python-multipart
-requests
-```
-*Em seguida, execute o comando `pip install -r requirements.txt`.*
+Os arquivos `.parquet` do UNSW-NB15 devem ficar dentro de `datasets/`. Caso não possua os arquivos, faça o download no site oficial e renomeie para:
 
+- `UNSW_NB15_training-set.parquet`
+- `UNSW_NB15_testing-set.parquet`
 
-## Executando a Aplicação
+## 🧠 Treinando os modelos
 
-A aplicação é servida usando Uvicorn, um servidor ASGI de alta performance.
+O script `model_training.py` realiza todo o pipeline:
 
-Para iniciar o servidor da API, execute o seguinte comando a partir do diretório raiz do projeto:
+1. Carrega e pré-processa os datasets (filtro das classes de interesse, limpeza de colunas e one-hot encoding).
+2. Ajusta e avalia três algoritmos (Random Forest, XGBoost, LightGBM) com `RandomizedSearchCV` (F1 ponderado como métrica-alvo).
+3. Loga métricas, parâmetros e matrizes de confusão no MLflow.
+4. Persiste o melhor pipeline completo (pré-processamento + modelo), mais o mapeamento de colunas e o label encoder.
+
+Execute o treinamento com:
 
 ```bash
-uvicorn app:app --reload --port 5000
+python model_training.py
 ```
 
-- `app:app`: O primeiro `app` se refere ao arquivo `app.py`; o segundo se refere à instância `FastAPI` criada no arquivo.
-- `--reload`: Ativa o recarregamento automático, para que o servidor reinicie sempre que houver alterações no código.
+### Artefatos gerados
 
-Após a execução, a API estará disponível em `http://127.0.0.1:5000`.
+- `best_model_pipeline_<ALG>.joblib`: Pipeline com pré-processamento e o modelo vencedor.
+- `model_columns.joblib`: Index de colunas usado no one-hot encoding para alinhamento durante inferência.
+- `label_encoder.joblib`: Encoder com as classes (`Normal`, `Backdoor`, `Worms`).
+- `model_comparison_metrics.csv`: Tabela com Weighted F1, Macro F1, precisões e recalls.
+- `per_class_f1_long.csv`: Tabela “long” com F1 por classe (ideal para gráficos comparativos).
+- `confusion_matrix_<ALG>.png`: Matrizes de confusão normalizadas.
+- `macro_f1_models.png` / `weighted_f1_models.png`: Gráficos opcionais gerados manualmente ou via notebook.
 
-## Documentação Interativa da API
+### Rastreamento com MLflow
 
-O FastAPI fornece documentação interativa e automática da API (gerada pelo Swagger UI). Com o servidor em execução, você pode acessá-la navegando para:
-
-**`http://127.0.0.1:5000/docs`**
-
-Esta interface permite que você explore e teste todos os endpoints da API diretamente do seu navegador.
-
-## Endpoints da API
-
-### 1. Obter Importância das Features
-
-Fornece as 15 features mais importantes utilizadas pelo modelo. Ideal para exibir insights estáticos do modelo em um frontend.
-
-- **URL**: `/features/importances`
-- **Método**: `GET`
-- **Resposta de Sucesso**: `200 OK`
-- **Exemplo de Corpo da Resposta**:
-  ```json
-  [
-    {
-      "feature": "sbytes",
-      "importance": 0.07664473928776257
-    },
-    {
-      "feature": "sttl",
-      "importance": 0.0728189815152829
-    }
-  ]
-  ```
-
-### 2. Predição via JSON
-
-Envia um único objeto JSON ou uma lista de objetos para predição.
-
-- **URL**: `/predict`
-- **Método**: `POST`
-- **Resposta de Sucesso**: `200 OK`
-- **Exemplo de Corpo da Requisição (Único)**:
-  ```json
-  {
-    "dur": 0.000011, "proto": "udp", "service": "-", "state": "INT", "spkts": 2, "dpkts": 0, "sbytes": 104, "dbytes": 0, "rate": 90909.0902, "sttl": 254, "dttl": 0, "sload": 37818180.0, "dload": 0.0, "sloss": 0, "dloss": 0, "sinpkt": 0.000011, "dinpkt": 0.0, "sjit": 0.0, "djit": 0.0, "swin": 0, "stcpb": 0, "dtcpb": 0, "dwin": 0, "tcprtt": 0.0, "synack": 0.0, "ackdat": 0.0, "smean": 52, "dmean": 0, "trans_depth": 0, "response_body_len": 0, "ct_srv_src": 2, "ct_state_ttl": 2, "ct_dst_ltm": 1, "ct_src_dport_ltm": 1, "ct_dst_sport_ltm": 1, "ct_dst_src_ltm": 1, "is_ftp_login": 0, "ct_ftp_cmd": 0, "ct_flw_http_mthd": 0, "ct_src_ltm": 1, "ct_srv_dst": 2, "is_sm_ips_ports": 0
-  }
-  ```
-- **Exemplo de Corpo da Resposta (Único)**:
-  ```json
-  {
-    "input_data": {
-      "dur": 1.1e-05, "proto": "udp", ...
-    },
-    "result": {
-      "prediction": "Normal",
-      "is_anomaly": false,
-      "confidence": 0.975,
-      "probabilities": {
-        "Backdoor": 0.0,
-        "Normal": 0.975,
-        "Worms": 0.025
-      }
-    }
-  }
-  ```
-
-### 3. Predição via CSV
-
-Envia um arquivo CSV para predição. Cada linha é processada e uma lista de resultados é retornada.
-
-- **URL**: `/predict/csv`
-- **Método**: `POST`
-- **Corpo da Requisição**: `multipart/form-data` contendo o arquivo CSV.
-- **Resposta de Sucesso**: `200 OK`
-- **Exemplo de Corpo da Resposta**:
-  ```json
-  [
-    {
-      "input_data": { "dur": 1.1e-05, ... },
-      "result": { "prediction": "Normal", ... }
-    },
-    {
-      "input_data": { "dur": 0.043303, ... },
-      "result": { "prediction": "Backdoor", ... }
-    }
-  ]
-  ```
-
-### 4. Predição via Parquet
-
-Envia um arquivo Parquet para predição. Cada linha é processada e uma lista de resultados é retornada.
-
-- **URL**: `/predict/parquet`
-- **Método**: `POST`
-- **Corpo da Requisição**: `multipart/form-data` contendo o arquivo Parquet (`.parquet`).
-- **Resposta de Sucesso**: `200 OK`
-
-
-## Executando o Script de Teste
-
-Um script de teste, `test_api.py`, é fornecido para verificar se todos os endpoints da API estão funcionando corretamente.
-
-1.  Certifique-se de que o servidor da API esteja em execução.
-2.  Abra um novo terminal (com o ambiente virtual ativado).
-3.  Execute o script:
-    ```bash
-    python test_api.py
-    ```
-O script imprimirá os códigos de status e as respostas para cada caso de teste.
-
-## Treinamento do Modelo
-
-Para treinar novamente o modelo com novos dados ou configurações diferentes, você pode usar o script `model_training.py`.
-
-1.  Coloque seus datasets (`UNSW_NB15_training-set.parquet`, `UNSW_NB15_testing-set.parquet`) no diretório `./datasets/`.
-2.  Execute o script de treinamento:
-    ```bash
-    python model_training.py
-    ```
-Este processo realizará uma busca por hiperparâmetros e salvará o melhor modelo, o scaler e a lista de colunas como `model.joblib`, `scaler.joblib`, e `model_columns.joblib`, respectivamente. A API carregará automaticamente esses novos arquivos ao ser reiniciada.
-
-## Frontend (Streamlit)
-
-Você pode testar a API com uma interface simples feita em Streamlit.
-
-### Instalação
-
-As dependências incluem `streamlit`. Se você já instalou via `requirements.txt`, nada a fazer. Caso contrário:
+Todos os experimentos ficam em `mlruns/`. Para uma interface visual, inicie o servidor local do MLflow:
 
 ```bash
-pip install streamlit
+mlflow ui --backend-store-uri mlruns --port 5001
 ```
 
-### Executar
+Abra `http://127.0.0.1:5001` para inspecionar métricas, parâmetros, artefatos e comparar execuções.
 
-1. Inicie a API (em um terminal):
-   ```bash
-   uvicorn app:app --reload --port 5000
-   ```
-2. Em outro terminal, inicie o Streamlit (no diretório do projeto):
-   ```bash
-   streamlit run streamlit_app.py
-   ```
-3. Acesse o app do Streamlit no navegador. Configure a URL base da API na barra lateral se necessário (padrão: `http://127.0.0.1:5000`).
+## 📊 Dashboard em Streamlit
 
-O app permite:
-- Enviar JSON (único ou lista) para `/predict`
-- Fazer upload de CSV para `/predict/csv`
-- Fazer upload de Parquet para `/predict/parquet`
-- Visualizar importâncias de features de `/features/importances`
+O arquivo `streamlit_training_dashboard.py` transforma os artefatos gerados em uma interface navegável com cinco seções:
+
+- **Overview**: Destaque do melhor modelo, métricas agregadas e links para gráficos resumidos.
+- **Metrics**: Gráficos de barras com Weighted F1, Macro F1 e comparação das classes.
+- **Confusion Matrices**: Visualização lado a lado das matrizes de confusão.
+- **Dataset Explorer**: Amostragens interativas do dataset (distribuições, frequências e estatísticas descritivas).
+- **Inference Sandbox**: Seção para comparar predição vs. rótulo real usando o pipeline salvo.
+
+Para rodar o dashboard:
+
+```bash
+streamlit run streamlit_training_dashboard.py
+```
+
+Abrirá uma URL no terminal (`http://localhost:8501` por padrão). Certifique-se de que os artefatos listados acima estejam presentes; o app exibirá mensagens amigáveis se algum arquivo estiver ausente.
+
+## 📦 Dependências principais
+
+As bibliotecas utilizadas estão descritas em `requirements.txt`. Destaques:
+
+- **Pandas / NumPy / PyArrow**: Manipulação de dados tabulares e arquivos parquet.
+- **scikit-learn**: Pré-processamento, pipelines, tuning de hiperparâmetros e métricas.
+- **XGBoost / LightGBM**: Modelos de gradient boosting otimizados para classificação.
+- **Seaborn / Matplotlib**: Visualizações estatísticas e gráficos customizados.
+- **MLflow**: Rastreamento de experimentos, versionamento de modelos e logging de artefatos.
+- **Streamlit**: Construção rápida do dashboard interativo.
+
+## 🛠️ Dicas e solução de problemas
+
+- **Memória insuficiente**: O UNSW-NB15 é volumoso. Ajuste o parâmetro `sample_size` no dashboard ou reduza `n_iter`/`cv` em `RandomizedSearchCV` durante experimentos locais.
+- **Artefatos ausentes**: Se o dashboard exibir alertas sobre arquivos inexistentes, execute `python model_training.py` novamente para gerar tudo.
+- **Falhas ao iniciar o MLflow UI**: Verifique se nenhuma outra aplicação está utilizando a porta informada (ex.: `lsof -i :5001`).
+- **Ambiente virtual quebrado**: Recrie o diretório `venv/` e reinstale as dependências com `pip install -r requirements.txt`.
+
+## ✅ Roadmap sugerido
+
+- [ ] Disponibilizar uma API FastAPI para servir o pipeline vencedor.
+- [ ] Automatizar o pipeline com agendamento (Airflow, Prefect ou GitHub Actions).
+- [ ] Adicionar testes unitários para a etapa de pré-processamento e para o dashboard.

@@ -12,6 +12,7 @@ scikit-learn
 numpy
 xgboost
 lightgbm
+imbalanced-learn
 
 # ML Experiment Tracking
 mlflow
@@ -22,3 +23,5 @@ seaborn
 
 # Frontend
 streamlit
+
+watchdog

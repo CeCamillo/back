@@ -6,9 +6,10 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix, f1_score
+from sklearn.metrics import classification_report, confusion_matrix, f1_score, precision_score, recall_score
 from sklearn.pipeline import Pipeline
 from joblib import dump
+from imblearn.over_sampling import SMOTE
 
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
@@ -52,6 +53,16 @@ le = LabelEncoder()
 y_train_encoded = le.fit_transform(y_train)
 y_test_encoded = le.transform(y_test)
 class_labels = le.classes_
+
+# --- Apply SMOTE to Handle Class Imbalance ---
+print("\n--- Applying SMOTE for Class Balancing ---")
+print(f"Before SMOTE - Class distribution:\n{pd.Series(y_train_encoded).value_counts()}")
+
+smote = SMOTE(random_state=RANDOM_STATE)
+X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train_encoded)
+
+print(f"\nAfter SMOTE - Class distribution:\n{pd.Series(y_train_balanced).value_counts()}")
+print("-"*40)
 
 # --- Define Models & Params ---
 models = {
@@ -108,7 +119,7 @@ for name, model in models.items():
             scoring='f1_weighted'
         )
 
-        search.fit(X_train, y_train_encoded)
+        search.fit(X_train_balanced, y_train_balanced)
         best_pipeline_for_model = search.best_estimator_
         y_pred_encoded = best_pipeline_for_model.predict(X_test)
 
@@ -153,7 +164,23 @@ for name, model in models.items():
 
 # --- Final Save ---
 print(f"\n{'='*20}\nMelhor Modelo Geral: {best_model_name} (F1 Ponderado: {best_score:.4f})\n{'='*20}")
+
+# Save complete pipeline (for anomaly_detector.py compatibility)
 dump(best_model_pipeline, f'best_model_pipeline_{best_model_name}.joblib')
+
+# Save individual components (for backend API)
+scaler = best_model_pipeline.named_steps['scaler']
+classifier = best_model_pipeline.named_steps['classifier']
+
+dump(scaler, 'scaler.joblib')
+dump(classifier, 'model.joblib')
 dump(X_train.columns, 'model_columns.joblib')
 dump(le, 'label_encoder.joblib')
-print("Artefatos salvos com sucesso.")
+
+print("\nArtefatos salvos:")
+print("  - best_model_pipeline_{}.joblib (pipeline completo)".format(best_model_name))
+print("  - model.joblib (classificador)")
+print("  - scaler.joblib (normalizador)")
+print("  - model_columns.joblib (colunas esperadas)")
+print("  - label_encoder.joblib (codificador de labels)")
+print("\n✅ Todos os artefatos salvos com sucesso.")

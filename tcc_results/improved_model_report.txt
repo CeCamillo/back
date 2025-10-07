@@ -1,0 +1,15 @@
+MODELO MELHORADO - RELATÓRIO DE CLASSIFICAÇÃO
+============================================================
+Modelo: RandomForestClassifier (n_estimators=100)
+Tratamento de Desbalanceamento de Classes: class_weight='balanced'
+============================================================
+
+              precision    recall  f1-score   support
+
+    Backdoor     0.9894    0.9623    0.9757       583
+      Normal     0.9991    0.9997    0.9994     37000
+       Worms     0.8462    0.7500    0.7952        44
+
+    accuracy                         0.9988     37627
+   macro avg     0.9449    0.9040    0.9234     37627
+weighted avg     0.9988    0.9988    0.9988     37627

@@ -41,4 +41,5 @@ Thumbs.db
 
 mlruns/
 
-*.png
+*.json
+

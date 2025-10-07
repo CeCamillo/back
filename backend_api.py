@@ -1,8 +1,3 @@
-"""
-Backend API for Network Anomaly Detection
-FastAPI server with /predict endpoint
-"""
-
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,18 +8,16 @@ from pathlib import Path
 from io import BytesIO
 import logging
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
 app = FastAPI(
-    title="Network Anomaly Detection API",
-    description="API for detecting Worms and Backdoor attacks in network traffic",
+    title="API de Detecção de Anomalias de Rede",
+    description="API para detecção de ataques Worms e Backdoor em tráfego de rede",
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Corrigir CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -33,71 +26,66 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Base directory
 BASE_DIR = Path(__file__).resolve().parent
 
-# Global variables for loaded artifacts
-model = None
-scaler = None
+pipeline = None
 model_columns = None
 label_encoder = None
 
-
 def load_model_artifacts():
-    """Load the trained model artifacts on startup."""
-    global model, scaler, model_columns, label_encoder
+    """Carrega os artefatos do modelo treinado na inicialização."""
+    global pipeline, model_columns, label_encoder
 
     try:
-        model_path = BASE_DIR / "model.joblib"
-        scaler_path = BASE_DIR / "scaler.joblib"
+        pipeline_path = BASE_DIR / "pipeline.joblib"
         columns_path = BASE_DIR / "model_columns.joblib"
         encoder_path = BASE_DIR / "label_encoder.joblib"
 
-        if not all([p.exists() for p in [model_path, scaler_path, columns_path, encoder_path]]):
-            raise FileNotFoundError("Missing required model artifacts. Run model_training.py first.")
+        if not all([p.exists() for p in [pipeline_path, columns_path, encoder_path]]):
+            raise FileNotFoundError("Artefatos do modelo não encontrados. Execute model_training.py primeiro.")
 
-        model = joblib.load(model_path)
-        scaler = joblib.load(scaler_path)
+        pipeline = joblib.load(pipeline_path)
         model_columns = joblib.load(columns_path)
         label_encoder = joblib.load(encoder_path)
 
-        logger.info("✅ Model artifacts loaded successfully")
-        logger.info(f"   - Model: {type(model).__name__}")
+        logger.info("✅ Artefatos do modelo carregados com sucesso")
+        logger.info(f"   - Pipeline: {type(pipeline).__name__}")
+        logger.info(f"   - Etapas do Pipeline: {[step[0] for step in pipeline.steps]}")
         logger.info(f"   - Features: {len(model_columns)}")
         logger.info(f"   - Classes: {list(label_encoder.classes_)}")
 
     except Exception as e:
-        logger.error(f"❌ Failed to load model artifacts: {e}")
+        logger.error(f"❌ Falha ao carregar artefatos do modelo: {e}")
         raise
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Load model artifacts when the server starts."""
+    """Carrega os artefatos do modelo quando o servidor inicia."""
     load_model_artifacts()
 
 
 @app.get("/")
 async def root():
-    """Health check endpoint."""
+    """Endpoint de verificação de saúde."""
     return {
         "status": "online",
-        "service": "Network Anomaly Detection API",
+        "service": "API de Detecção de Anomalias de Rede",
         "version": "1.0.0",
         "endpoints": {
-            "/predict": "POST - Upload CSV/Parquet file for anomaly detection",
-            "/health": "GET - Check API health status"
+            "/predict/csv": "POST - Enviar arquivo CSV/Parquet para detecção de anomalias",
+            "/health": "GET - Verificar status de saúde da API"
         }
     }
 
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check with model status."""
+    """Verificação detalhada de saúde com status do modelo."""
     return {
         "status": "healthy",
-        "model_loaded": model is not None,
-        "scaler_loaded": scaler is not None,
+        "pipeline_loaded": pipeline is not None,
+        "pipeline_steps": [step[0] for step in pipeline.steps] if pipeline is not None else [],
         "expected_features": len(model_columns) if model_columns is not None else 0,
         "classes": list(label_encoder.classes_) if label_encoder is not None else []
     }
@@ -105,50 +93,48 @@ async def health_check():
 
 def preprocess_uploaded_data(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Preprocess uploaded data to match training format.
+    Pré-processa os dados enviados para corresponder ao formato de treinamento.
 
-    Steps:
-    1. One-hot encode categorical features
-    2. Align columns with training data
-    3. Apply scaler
+    Etapas:
+    1. One-hot encode de features categóricas
+    2. Alinha colunas com dados de treinamento
+
+    Nota: Scaling é feito automaticamente pelo pipeline
     """
-    # One-hot encode categorical features
+    # Codificar features categóricas com one-hot encoding
     X = pd.get_dummies(df)
 
-    # Align with training columns
-    X = X.reindex(columns=model_columns, fill_value=0)
+    # Alinhar com colunas de treinamento (preencher colunas faltantes com 0)
+    X_aligned = X.reindex(columns=model_columns, fill_value=0)
 
-    # Apply scaling
-    X_scaled = scaler.transform(X)
-
-    return X_scaled
+    return X_aligned
 
 
-@app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+@app.post("/predict/csv")
+async def predict_csv(file: UploadFile = File(...)):
     """
-    Predict anomalies in uploaded network traffic data.
+    Prediz anomalias em dados de tráfego de rede enviados.
 
     Args:
-        file: CSV or Parquet file containing network traffic data
+        file: Arquivo CSV ou Parquet contendo dados de tráfego de rede
 
     Returns:
-        JSON response with:
-        - total_connections: Total number of connections analyzed
-        - normal_connections: Number of normal connections
-        - worms_detected: Number of worm attacks detected
-        - backdoors_detected: Number of backdoor attacks detected
-        - anomaly_rate: Percentage of anomalous traffic
-        - precision: Model precision score
-        - recall: Model recall score
-        - f1_score: Model F1 score
-        - predictions: List of predictions for each connection
+        Resposta JSON com:
+        - total_connections: Número total de conexões analisadas
+        - normal_connections: Número de conexões normais
+        - worms_detected: Número de ataques worm detectados
+        - backdoors_detected: Número de ataques backdoor detectados
+        - anomaly_rate: Porcentagem de tráfego anômalo
+        - precision: Score de precisão do modelo
+        - recall: Score de recall do modelo
+        - f1_score: Score F1 do modelo
+        - predictions: Lista de predições para cada conexão
     """
-    if model is None or scaler is None:
-        raise HTTPException(status_code=500, detail="Model not loaded. Server initialization failed.")
+    if pipeline is None:
+        raise HTTPException(status_code=500, detail="Pipeline não carregado. Falha na inicialização do servidor.")
 
     try:
-        # Read uploaded file
+        # Ler arquivo enviado
         contents = await file.read()
 
         if file.filename.endswith('.csv'):
@@ -158,29 +144,29 @@ async def predict(file: UploadFile = File(...)):
         else:
             raise HTTPException(
                 status_code=400,
-                detail="Unsupported file format. Please upload CSV or Parquet file."
+                detail="Formato de arquivo não suportado. Por favor, envie um arquivo CSV ou Parquet."
             )
 
-        logger.info(f"📁 Received file: {file.filename} with {len(df)} records")
+        logger.info(f"📁 Arquivo recebido: {file.filename} com {len(df)} registros")
 
-        # Store original data for response
+        # Armazenar dados originais para resposta
         original_df = df.copy()
 
-        # Preprocess data
+        # Pré-processar dados (one-hot encoding e alinhamento de colunas)
         X_processed = preprocess_uploaded_data(df)
 
-        # Make predictions
-        predictions_encoded = model.predict(X_processed)
+        # Fazer predições usando o pipeline (lida com scaling internamente)
+        predictions_encoded = pipeline.predict(X_processed)
         predictions = label_encoder.inverse_transform(predictions_encoded)
 
-        # Calculate probabilities (confidence scores)
-        if hasattr(model, 'predict_proba'):
-            probabilities = model.predict_proba(X_processed)
+        # Calcular probabilidades (scores de confiança)
+        if hasattr(pipeline, 'predict_proba'):
+            probabilities = pipeline.predict_proba(X_processed)
             confidence_scores = probabilities.max(axis=1).tolist()
         else:
             confidence_scores = [1.0] * len(predictions)
 
-        # Count predictions
+        # Contar predições
         total_connections = len(predictions)
         normal_count = int(np.sum(predictions == 'Normal'))
         worms_count = int(np.sum(predictions == 'Worms'))
@@ -188,12 +174,14 @@ async def predict(file: UploadFile = File(...)):
         anomaly_count = worms_count + backdoor_count
         anomaly_rate = (anomaly_count / total_connections * 100) if total_connections > 0 else 0
 
-        # Calculate performance metrics (if ground truth exists)
+        # Calcular métricas de desempenho (se ground truth existir)
+        # Isso é crucial para validação do TCC - retorna classification_report completo
+        full_classification_report = None
         precision = None
         recall = None
         f1 = None
 
-        # Check if ground truth columns exist
+        # Verificar se colunas de ground truth existem
         ground_truth_cols = ['label', 'attack_cat', 'attack_label']
         ground_truth_col = None
 
@@ -204,11 +192,11 @@ async def predict(file: UploadFile = File(...)):
 
         if ground_truth_col:
             try:
-                from sklearn.metrics import precision_score, recall_score, f1_score
+                from sklearn.metrics import precision_score, recall_score, f1_score, classification_report
 
-                # Prepare ground truth
+                # Preparar ground truth
                 if ground_truth_col == 'label':
-                    # Binary label: 0=Normal, 1=Attack
+                    # Rótulo binário: 0=Normal, 1=Ataque
                     y_true_binary = original_df[ground_truth_col].values
                     y_pred_binary = (predictions != 'Normal').astype(int)
 
@@ -216,11 +204,20 @@ async def predict(file: UploadFile = File(...)):
                     recall = float(recall_score(y_true_binary, y_pred_binary, zero_division=0))
                     f1 = float(f1_score(y_true_binary, y_pred_binary, zero_division=0))
 
+                    # Gerar relatório de classificação binária
+                    full_classification_report = classification_report(
+                        y_true_binary,
+                        y_pred_binary,
+                        target_names=['Normal', 'Attack'],
+                        output_dict=True,
+                        zero_division=0
+                    )
+
                 elif ground_truth_col in ['attack_cat', 'attack_label']:
-                    # Multi-class label
+                    # Rótulo multi-classe - ESTE É O CAMINHO PRINCIPAL PARA VALIDAÇÃO DO TCC
                     y_true = original_df[ground_truth_col].fillna('Normal').values
 
-                    # Map to same format as predictions
+                    # Mapear para o mesmo formato das predições
                     y_true_mapped = []
                     for val in y_true:
                         if val in ['Normal', 'Worms', 'Backdoor']:
@@ -234,12 +231,23 @@ async def predict(file: UploadFile = File(...)):
                     recall = float(recall_score(y_true_mapped, predictions, average='weighted', zero_division=0))
                     f1 = float(f1_score(y_true_mapped, predictions, average='weighted', zero_division=0))
 
-                logger.info(f"📊 Performance Metrics - Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}")
+                    # Gerar relatório de classificação multi-classe completo
+                    # Esta é a saída chave para avaliação acadêmica
+                    full_classification_report = classification_report(
+                        y_true_mapped,
+                        predictions,
+                        target_names=['Backdoor', 'Normal', 'Worms'],
+                        output_dict=True,
+                        zero_division=0
+                    )
+
+                logger.info(f"📊 Métricas de Performance - Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}")
+                logger.info(f"📊 Relatório de Classificação Completo Gerado (para validação do TCC)")
 
             except Exception as e:
-                logger.warning(f"Could not calculate performance metrics: {e}")
+                logger.warning(f"Não foi possível calcular métricas de performance: {e}")
 
-        # Prepare detailed predictions
+        # Preparar predições detalhadas
         detailed_predictions = []
         for i, (pred, conf) in enumerate(zip(predictions, confidence_scores)):
             detailed_predictions.append({
@@ -248,7 +256,7 @@ async def predict(file: UploadFile = File(...)):
                 "confidence": round(conf, 4)
             })
 
-        # Build response
+        # Construir resposta
         response = {
             "status": "success",
             "file_name": file.filename,
@@ -266,22 +274,27 @@ async def predict(file: UploadFile = File(...)):
             "predictions": detailed_predictions
         }
 
-        logger.info(f"✅ Analysis complete: {anomaly_count}/{total_connections} anomalies detected ({anomaly_rate:.1f}%)")
+        # Adiciona relatório de classificação completo se disponível (para avaliação acadêmica do TCC)
+        if full_classification_report is not None:
+            response["classification_report"] = full_classification_report
+            logger.info("✅ Relatório de classificação completo incluído na resposta para validação do TCC")
+
+        logger.info(f"✅ Análise completa: {anomaly_count}/{total_connections} anomalias detectadas ({anomaly_rate:.1f}%)")
 
         return JSONResponse(content=response)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error during prediction: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+        logger.error(f"❌ Erro durante predição: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao processar arquivo: {str(e)}")
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    print("🚀 Starting Network Anomaly Detection API...")
-    print("📍 API will be available at: http://localhost:8000")
-    print("📖 API documentation at: http://localhost:8000/docs")
+    print("🚀 Iniciando API de Detecção de Anomalias de Rede...")
+    print("📍 API estará disponível em: http://localhost:8000")
+    print("📖 Documentação da API em: http://localhost:8000/docs")
 
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

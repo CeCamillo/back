@@ -1,0 +1,15 @@
+MODELO INGÊNUO - RELATÓRIO DE CLASSIFICAÇÃO
+============================================================
+Modelo: RandomForestClassifier (n_estimators=100)
+Tratamento de Desbalanceamento de Classes: Nenhum
+============================================================
+
+              precision    recall  f1-score   support
+
+    Backdoor     0.9912    0.9623    0.9765       583
+      Normal     0.9992    0.9997    0.9994     37000
+       Worms     0.8333    0.7955    0.8140        44
+
+    accuracy                         0.9989     37627
+   macro avg     0.9412    0.9191    0.9300     37627
+weighted avg     0.9988    0.9989    0.9988     37627
